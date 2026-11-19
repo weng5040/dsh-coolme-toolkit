@@ -1,0 +1,6 @@
+# dsh-conversation-width bundle patch.
+# The Host half is an empty shell: this feature is entirely a Client
+# contribution (a General-settings row plus a frame-wide style outlet).
+- insert:
+    - id: dsh-conversation-width
+      name: '@local/dsh-conversation-width'
