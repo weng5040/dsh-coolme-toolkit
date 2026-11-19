@@ -8,12 +8,20 @@
 
 | 功能 | 作用 | 运行位置 |
 |---|---|---|
-| 会话内容宽度 | 在 **设置 → 通用** 中按主列百分比调整会话正文宽度，范围 20%–100% | Client |
+| 会话内容宽度 | 按主列百分比调整会话正文宽度，范围 20%–100% | Client |
 | 设置弹窗尺寸 | 调整设置弹窗的宽度和高度，支持滑块、数字输入和一键重置 | Client |
-| 服务重启 | 在 **设置 → 通用** 中提供两击确认的重启按钮，等待新进程恢复后自动刷新 | Host + Client |
+| 服务重启 | 提供两击确认的重启按钮，等待新进程恢复后自动刷新；不支持的环境自动隐藏 | Host + Client |
 | fake-ip 放行 | 允许 `web_fetch` 接受透明代理的 `198.18.0.0/15` fake-ip 应答，不修改 dsh 安装文件 | Host |
 
-原有的浏览器存储键保持不变，合并前的会话宽度和弹窗尺寸设置会保留。
+三个界面功能集中在左侧导航的 **CoolMe 工具箱** 专属页面，不再占用「设置 → 通用」。原有的浏览器存储键保持不变，合并前的会话宽度和弹窗尺寸设置会保留。
+
+## 使用
+
+点击左侧导航中的 **CoolMe 工具箱**，即可使用：
+
+- 会话内容宽度
+- 设置弹窗尺寸
+- 服务重启（仅在 Host 支持时显示）
 
 ## 从旧插件迁移
 
@@ -25,7 +33,7 @@ dsh plugin --profile web remove @local/dsh-settings-size
 dsh plugin --profile web remove @local/dsh-service-restart
 dsh plugin --profile web remove @local/dsh-fake-ip-allowlist
 
-dsh plugin --profile web add github:weng5040/dsh-coolme-toolkit#v2.0.0
+dsh plugin --profile web add github:weng5040/dsh-coolme-toolkit#v2.1.0
 ```
 
 如果某条 `remove` 提示对应插件未安装，继续执行其余命令即可。完成后重启 dsh 并刷新 Web UI。
@@ -35,7 +43,7 @@ dsh plugin --profile web add github:weng5040/dsh-coolme-toolkit#v2.0.0
 ## 全新安装
 
 ```bash
-dsh plugin --profile web add github:weng5040/dsh-coolme-toolkit#v2.0.0
+dsh plugin --profile web add github:weng5040/dsh-coolme-toolkit#v2.1.0
 ```
 
 安装完成后重启 dsh，并刷新 Web UI。
@@ -51,7 +59,7 @@ dsh plugin --profile web add github:weng5040/dsh-coolme-toolkit#main
 或安装指定 Release（将版本号替换为目标版本）：
 
 ```bash
-dsh plugin --profile web add github:weng5040/dsh-coolme-toolkit#v2.0.0
+dsh plugin --profile web add github:weng5040/dsh-coolme-toolkit#v2.1.0
 ```
 
 更新完成后重启 dsh，并刷新 Web UI。
@@ -93,6 +101,16 @@ config:
 grep 'dsh-coolme-toolkit' /var/log/dsh-web.log
 ```
 
+### 服务重启能力检测
+
+重启能力由 **dsh 所在的 Host** 判定，与浏览器使用什么系统无关。只有同时满足以下条件才显示重启卡片：
+
+1. Host 是 Linux；
+2. 存在 `/usr/bin/systemctl` 和 `/usr/bin/systemd-run`；
+3. `/run/systemd/system` 存在，说明 systemd 正在运行。
+
+Windows、macOS、未使用 systemd 的 Linux 容器等环境会隐藏该卡片；即使直接调用 POST 接口，也会收到 `409`，不会执行命令。反过来，Windows 浏览器访问 Linux 上运行的 dsh 时，只要 Host 满足条件，就可以正常使用。
+
 ### 服务重启警告
 
 重启按钮等价于：
@@ -110,7 +128,7 @@ systemctl restart dsh-web.service
 ├── index.js            # 统一 Host 入口，组合两个 Host 功能
 ├── fake-ip.js          # web_fetch fake-ip resolver 包装
 ├── service-restart.js  # 认证重启路由
-├── client.js           # 三个独立的 Client UI 模块
+├── client.js           # 统一 Client 入口、左侧导航与专属页面
 ├── verify.mjs          # fake-ip 独立验证工具
 ├── cordis.patch.yml    # 单 bundle 声明与默认配置
 ├── icon.svg
@@ -125,7 +143,8 @@ systemctl restart dsh-web.service
 - 工具箱整体未加载：在 dsh 日志中查 `did not activate`。
 - fake-ip 放行未生效：`grep 'dsh-coolme-toolkit' /var/log/dsh-web.log`，或运行 `node <插件目录>/verify.mjs`。
 - 重启按钮不可用：同一日志中查 `WARN webServer/connection services are unavailable`。
-- 设置页缺少三行：刷新页面后检查浏览器控制台，确认 `@local/dsh-coolme-toolkit/*` 三个 client 模块均注册成功。
+- 左侧没有工具箱页签或页面缺少功能：刷新页面后检查浏览器控制台，确认 `@local/dsh-coolme-toolkit` client 模块注册成功。
+- 重启卡片未显示：查看 GET `/api/dsh-web-restart` 返回的 `available` 和 `reason`；`not-linux`、`systemd-tools-missing`、`systemd-not-running` 均会自动隐藏。
 
 ## 兼容性
 

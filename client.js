@@ -1,28 +1,15 @@
 /**
- * Client half of the dsh-conversation-width bundle.
+ * CoolMe Toolkit browser bundle.
  *
- * The transcript column is sized by `--dsh-chat-content-width`, which the
- * Conversation body declares as
- * `var(--dsh-chat-user-width, clamp(680px, column * .64, 920px))`. Everything
- * that must line up with it — the user bubble stack, wide tables, the
- * "jump to bottom" button and the composer card — derives from that one value.
- *
- * The shipped drag handles write an absolute px `--dsh-chat-user-width` onto
- * the body's *parent*. A declaration on the body element itself therefore wins
- * over that inherited value without `!important`, and keeps the composer
- * aligned because the body computes its composer width from the same value.
- *
- * 64% is the app's own default percentage, so leaving the slider there emits
- * nothing at all and keeps the shipped `680–920px` clamp; moving it hands the
- * axis to the percentage and the clamp is released.
- *
- * The row is the settings-section slider recipe used by the Catppuccin glass
- * group: a 92px label, a native `range` input coloured by `accent-color`, and a
- * 56px number box with its unit beside it.
+ * One ModuleLoader entry owns the left-navigation page and all three UI tools.
+ * Feature-local state, locale namespaces, storage keys and effect cleanup are
+ * preserved inside isolated module closures.
  */
+
 window.__ModuleLoader__.load({
-  id: '@local/dsh-coolme-toolkit/conversation-width',
+  id: '@local/dsh-coolme-toolkit',
   factory(require) {
+    const ConversationModule = (() => {
     const React = require('react');
     const h = React.createElement;
 
@@ -234,9 +221,7 @@ window.__ModuleLoader__.load({
             }, tr('reset')))));
     }
 
-    return {
-      inject: ['slots', 'locale'],
-      apply(ctx) {
+    function apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, 'zh', {
           title: '会话内容宽度',
           description: '会话正文占主内容区宽度的百分比。官方默认 64%，且夹在 680–920px；改动后按你的百分比，上不封顶。',
@@ -265,38 +250,13 @@ window.__ModuleLoader__.load({
           order: 901,
         }, WidthStyle));
 
-        ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-          name: 'settings.general.item',
-          id: 'dsh-conversation-width',
-          order: 17,
-          locale: NS,
-        }, WidthGroup));
-      },
-    };
-  },
-});
+    }
 
-/**
- * Client half of the dsh-settings-size bundle.
- *
- * The settings dialog is a body-portaled modal owned by
- * `@deepseek-ai/dsh-client-ui-settings-general`, fixed at `800px` wide and
- * `min(800px, 100vh - 48px)` tall. This module overrides those two properties
- * through `data-shortcut-modal="settings"` — the modal layer's own stable hook,
- * instead of the owner's hashed class names — and contributes one General
- * section group holding a slider row per property.
- *
- * A value equal to the dialog's own default leaves the shipped rule in charge
- * (no override is emitted), so an untouched install behaves exactly like the
- * app; the reset button and dragging back to the default both return to it.
- *
- * The row is the settings-section slider recipe used by the Catppuccin glass
- * group: a 92px label, a native `range` input coloured by `accent-color`, and a
- * 56px number box with its unit beside it.
- */
-window.__ModuleLoader__.load({
-  id: '@local/dsh-coolme-toolkit/settings-size',
-  factory(require) {
+    return { NS, css, WidthGroup, WidthStyle, apply };
+
+})();
+
+const SettingsModule = (() => {
     const React = require('react');
     const h = React.createElement;
 
@@ -520,9 +480,7 @@ window.__ModuleLoader__.load({
             }, tr('reset')))));
     }
 
-    return {
-      inject: ['slots', 'locale'],
-      apply(ctx) {
+    function apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, 'zh', {
           title: '设置弹窗尺寸',
           description: '设置面板的宽度与高度；官方默认 800 × min(800, 窗口高 − 48px)，值为默认时不改动。',
@@ -553,34 +511,13 @@ window.__ModuleLoader__.load({
           order: 900,
         }, SizeStyle));
 
-        ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-          name: 'settings.general.item',
-          id: 'dsh-settings-size',
-          order: 16,
-          locale: NS,
-        }, SizeGroup));
-      },
-    };
-  },
-});
+    }
 
-/**
- * Client half of the dsh-service-restart bundle.
- *
- * Contributes one General-settings group with a two-step restart button: the
- * first click arms it, the second POSTs the restart route. While the service
- * restarts, the row polls the same route until the *new* host process answers
- * with a different `bootId`, then reloads the page.
- *
- * It deliberately does NOT live in `sidebar.footer.action`: that seat is a
- * single flex ROW, and a full-width row action already occupies it
- * (`dsh-session-manager` uses `flex:none; width:calc(100% + 8px)`, so it can
- * neither shrink nor share). Any second full-width entry there is crushed to a
- * sliver — mine was the only shrinkable item, so it absorbed the whole deficit.
- */
-window.__ModuleLoader__.load({
-  id: '@local/dsh-coolme-toolkit/service-restart',
-  factory(require) {
+    return { NS, css, SizeGroup, SizeStyle, apply };
+
+})();
+
+const RestartModule = (() => {
     const React = require('react');
     const h = React.createElement;
 
@@ -691,8 +628,27 @@ window.__ModuleLoader__.load({
         : (key) => (FALLBACK[key] !== undefined ? FALLBACK[key] : key);
 
       const [phase, setPhase] = React.useState('idle');
+      const [supported, setSupported] = React.useState(null);
       const alive = React.useRef(true);
       React.useEffect(() => () => { alive.current = false; }, []);
+
+      // Host is authoritative: unsupported platforms render no restart card.
+      React.useEffect(() => {
+        let active = true;
+        let timer;
+        const check = (attempt) => {
+          probe()
+            .then((info) => { if (active) setSupported(info.available === true); })
+            .catch(() => {
+              if (!active) return;
+              // The Host route can appear just after this page mounts.
+              if (attempt === 0) timer = setTimeout(() => check(1), 2500);
+              else setSupported(false);
+            });
+        };
+        check(0);
+        return () => { active = false; if (timer !== undefined) clearTimeout(timer); };
+      }, []);
 
       // "Armed" is a state the user can walk away from; reset it.
       React.useEffect(() => {
@@ -774,16 +730,17 @@ window.__ModuleLoader__.load({
         onClick,
       }, glyph, h('span', null, tr(key)));
 
-      return h('div', { className: 'dsrs-group' },
+      if (supported !== true) return null;
+
+      const content = h('div', { className: 'dsrs-group' },
         h('div', { className: 'dsrs-title' }, tr('title')),
         h('div', { className: 'dsrs-description' }, tr('description')),
         h('div', { className: 'dsrs-controls' },
           h('div', { className: 'dsrs-row' }, button)));
+      return h('section', { className: 'dscmtk-card' }, content);
     }
 
-    return {
-      inject: ['slots', 'locale'],
-      apply(ctx) {
+    function apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, 'zh', {
           title: '服务重启',
           description: '等价于 systemctl restart dsh-web.service；会中断正在运行的会话。为避免误触，需要点两次。',
@@ -809,12 +766,110 @@ window.__ModuleLoader__.load({
           timeout: 'Service did not come back, reload manually',
         }), 'dsh-service-restart: en dictionary');
 
-        ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-          name: 'settings.general.item',
-          id: 'dsh-service-restart',
-          order: 15,
+    }
+
+    return { NS, css, RestartGroup, apply };
+
+})();
+
+
+
+    const React = require('react');
+    const h = React.createElement;
+    const NS = 'dsh-coolme-toolkit';
+    const PKG = '@local/dsh-coolme-toolkit';
+    const NAV_ID = 'dsh-coolme-toolkit';
+
+    const css = `
+.dscmtk-page{height:100%;overflow:auto;box-sizing:border-box;padding:28px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1)}
+.dscmtk-container{max-width:960px;margin:0 auto;flex-direction:column;gap:16px;display:flex}
+.dscmtk-header{margin-bottom:4px}
+.dscmtk-title{font-size:22px;line-height:30px;font-weight:600;margin:0}
+.dscmtk-description{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:20px;margin:6px 0 0}
+.dscmtk-card{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);border-radius:12px;padding:18px 20px}
+.dscmtk-card .dscw-group,.dscmtk-card .dssz-group,.dscmtk-card .dsrs-group{border-bottom:0;padding:0}
+.dscmtk-icon{display:block}
+@media (max-width:640px){.dscmtk-page{padding:16px}.dscmtk-card{padding:16px}}
+`;
+
+    function ToolkitIcon(props) {
+      const size = typeof props.size === 'number' ? props.size : 18;
+      return h('svg', {
+        className: 'dscmtk-icon',
+        width: size,
+        height: size,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 1.7,
+        strokeLinecap: 'round',
+        'aria-hidden': true,
+      },
+        h('path', { d: 'M4 7h16M4 17h16' }),
+        h('circle', { cx: 9, cy: 7, r: 2, fill: 'var(--dsw-alias-bg-layer-1)' }),
+        h('circle', { cx: 15, cy: 17, r: 2, fill: 'var(--dsw-alias-bg-layer-1)' }));
+    }
+
+    function ToolkitBaseStyle() {
+      const text = [css, ConversationModule.css, SettingsModule.css, RestartModule.css].join('\n');
+      return h('style', { 'data-plugin': PKG, dangerouslySetInnerHTML: { __html: text } });
+    }
+
+    return {
+      inject: ['slots', 'locale'],
+      apply(ctx) {
+        ctx.effect(() => ctx.locale.register(NS, 'zh', {
+          title: 'CoolMe 工具箱',
+          description: '会话与设置界面调整，以及本机 dsh 服务维护。',
+        }), 'dsh-coolme-toolkit: zh dictionary');
+        ctx.effect(() => ctx.locale.register(NS, 'en', {
+          title: 'CoolMe Toolkit',
+          description: 'Conversation and settings UI controls, plus local dsh service maintenance.',
+        }), 'dsh-coolme-toolkit: en dictionary');
+
+        // Each feature keeps its own dictionaries, effects and storage keys.
+        ConversationModule.apply(ctx);
+        SettingsModule.apply(ctx);
+        RestartModule.apply(ctx);
+
+        ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+          name: 'shell.overlay',
+          id: 'dsh-coolme-toolkit-base-style',
+          order: 899,
+        }, ToolkitBaseStyle));
+
+        const t = ctx.locale.bind(NS);
+
+        const conversationT = ctx.locale.bind(ConversationModule.NS);
+        const settingsT = ctx.locale.bind(SettingsModule.NS);
+        const restartT = ctx.locale.bind(RestartModule.NS);
+
+        function ToolkitPage() {
+          return h('div', { className: 'dscmtk-page' },
+            h('div', { className: 'dscmtk-container' },
+              h('header', { className: 'dscmtk-header' },
+                h('h1', { className: 'dscmtk-title' }, t('title')),
+                h('p', { className: 'dscmtk-description' }, t('description'))),
+              h('section', { className: 'dscmtk-card' },
+                h(ConversationModule.WidthGroup, { t: conversationT })),
+              h('section', { className: 'dscmtk-card' },
+                h(SettingsModule.SizeGroup, { t: settingsT })),
+              h(RestartModule.RestartGroup, { t: restartT })));
+        }
+
+        ctx.slots.inject('main', () => ctx.slots.register({
+          name: 'main',
+          key: NAV_ID,
           locale: NS,
-        }, RestartGroup));
+        }, ToolkitPage));
+
+        ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+          name: 'sidebar.panellist',
+          id: NAV_ID,
+          order: 40,
+          label: () => t('title'),
+          locale: NS,
+        }, ToolkitIcon));
       },
     };
   },

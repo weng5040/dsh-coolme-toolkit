@@ -37,7 +37,7 @@ async function startRestart(ctx, config) {
     await new Promise((resolve) => { setTimeout(resolve, RESTART_WAIT_STEP_MS); });
   }
   if (!restartServicesReady(ctx)) {
-    warn(ctx, 'webServer/connection services are unavailable; the restart button stays disabled.');
+    warn(ctx, 'webServer/connection services are unavailable; the restart route is not registered.');
     return;
   }
   applyServiceRestart(ctx, config);

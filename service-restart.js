@@ -18,6 +18,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 
 /** Single exact route; `/api` prefix routes never shadow an exact match. */
 const ROUTE = '/api/dsh-web-restart';
@@ -30,13 +31,30 @@ const SYSTEMCTL = '/usr/bin/systemctl';
  * configured value is constrained to the characters systemd unit names use.
  */
 const UNIT_NAME = /^[A-Za-z0-9][A-Za-z0-9@._:-]*$/;
+const SYSTEMD_RUNTIME = '/run/systemd/system';
 
+/**
+ * Whether this Host can safely schedule a systemd restart.
+ * The optional environment is a test seam; production uses the real Host.
+ */
+export function detectRestartSupport(environment = {}) {
+  const platform = environment.platform ?? process.platform;
+  const present = environment.existsSync ?? existsSync;
+  if (platform !== 'linux') return { available: false, reason: 'not-linux' };
+  if (!present(SYSTEMCTL) || !present(SYSTEMD_RUN)) {
+    return { available: false, reason: 'systemd-tools-missing' };
+  }
+  if (!present(SYSTEMD_RUNTIME)) return { available: false, reason: 'systemd-not-running' };
+  return { available: true };
+}
 
 /**
  * @param ctx Cordis context carrying `webServer` and `connection`.
  * @param config optional row config: `{ unit?: string, delaySeconds?: number }`.
+ * @param environment optional platform/filesystem test seam.
  */
-export function apply(ctx, config) {
+export function apply(ctx, config, environment = {}) {
+  const support = detectRestartSupport(environment);
   const requested = typeof config?.unit === 'string' ? config.unit.trim() : '';
   const unit = UNIT_NAME.test(requested) ? requested : DEFAULT_UNIT;
   if (requested !== '' && unit !== requested) {
@@ -87,7 +105,8 @@ export function apply(ctx, config) {
       '-c',
       shell,
     ];
-    const result = spawnSync(SYSTEMD_RUN, args, { encoding: 'utf8', timeout: 5000 });
+    const run = environment.spawnSync ?? spawnSync;
+    const result = run(SYSTEMD_RUN, args, { encoding: 'utf8', timeout: 5000 });
     return { name, result };
   };
 
@@ -100,6 +119,8 @@ export function apply(ctx, config) {
       if (req.method === 'GET' || req.method === 'HEAD') {
         sendJson(res, 200, {
           ok: true,
+          available: support.available,
+          reason: support.reason,
           unit,
           bootId,
           restarting,
@@ -115,8 +136,18 @@ export function apply(ctx, config) {
         return;
       }
 
+      if (!support.available) {
+        sendJson(res, 409, {
+          ok: false,
+          available: false,
+          reason: support.reason,
+          message: 'service restart requires Linux with a running systemd',
+        });
+        return;
+      }
+
       if (restarting) {
-        sendJson(res, 202, { ok: true, unit, bootId, alreadyScheduled: true });
+        sendJson(res, 202, { ok: true, available: true, unit, bootId, alreadyScheduled: true });
         return;
       }
 

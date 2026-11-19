@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-coolme-toolkit",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "description": "CoolMe's personal dsh toolkit: conversation width, settings size, service restart, and fake-ip-aware web_fetch.",
   "repository": {
