@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "会话内容宽度",
-    "description": "在「设置 → 通用」中按主内容区宽度的百分比自定义会话正文宽度。"
+    "title": "CoolMe 工具箱",
+    "description": "个人 dsh 工具合集：会话内容宽度、设置弹窗尺寸、服务重启和 web_fetch fake-ip 放行。"
   }
 }

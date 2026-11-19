@@ -1,32 +1,38 @@
 {
-  "name": "@local/dsh-conversation-width",
-  "version": "1.0.0",
+  "name": "@local/dsh-coolme-toolkit",
+  "version": "2.0.0",
   "private": true,
-  "description": "Sets the conversation content width as a percentage of the main column, from a row in Settings -> General.",
+  "description": "CoolMe's personal dsh toolkit: conversation width, settings size, service restart, and fake-ip-aware web_fetch.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/weng5040/dsh-conversation-width.git"
+    "url": "git+https://github.com/weng5040/dsh-coolme-toolkit.git"
   },
-  "homepage": "https://github.com/weng5040/dsh-conversation-width#readme",
+  "homepage": "https://github.com/weng5040/dsh-coolme-toolkit#readme",
   "bugs": {
-    "url": "https://github.com/weng5040/dsh-conversation-width/issues"
+    "url": "https://github.com/weng5040/dsh-coolme-toolkit/issues"
   },
   "keywords": [
     "dsh",
     "dsh-plugin",
-    "deepseek-harness"
+    "deepseek-harness",
+    "toolkit"
   ],
   "type": "module",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
+    "./fake-ip": "./fake-ip.js",
+    "./service-restart": "./service-restart.js",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
   },
   "icon": "./icon.svg",
   "files": [
     "index.js",
+    "fake-ip.js",
+    "service-restart.js",
     "client.js",
+    "verify.mjs",
     "cordis.patch.yml",
     "icon.svg",
     "locale/*.json"

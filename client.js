@@ -21,13 +21,13 @@
  * 56px number box with its unit beside it.
  */
 window.__ModuleLoader__.load({
-  id: '@local/dsh-conversation-width',
+  id: '@local/dsh-coolme-toolkit/conversation-width',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
 
     const NS = 'dsh-conversation-width';
-    const PKG = '@local/dsh-conversation-width';
+    const PKG = '@local/dsh-coolme-toolkit';
     const STORAGE_KEY = 'dsh:conversation-content-percent';
     /** The app's own default ratio (`.64`), which also means "not overridden". */
     const DEFAULT_PERCENT = 64;
@@ -271,6 +271,550 @@ window.__ModuleLoader__.load({
           order: 17,
           locale: NS,
         }, WidthGroup));
+      },
+    };
+  },
+});
+
+/**
+ * Client half of the dsh-settings-size bundle.
+ *
+ * The settings dialog is a body-portaled modal owned by
+ * `@deepseek-ai/dsh-client-ui-settings-general`, fixed at `800px` wide and
+ * `min(800px, 100vh - 48px)` tall. This module overrides those two properties
+ * through `data-shortcut-modal="settings"` — the modal layer's own stable hook,
+ * instead of the owner's hashed class names — and contributes one General
+ * section group holding a slider row per property.
+ *
+ * A value equal to the dialog's own default leaves the shipped rule in charge
+ * (no override is emitted), so an untouched install behaves exactly like the
+ * app; the reset button and dragging back to the default both return to it.
+ *
+ * The row is the settings-section slider recipe used by the Catppuccin glass
+ * group: a 92px label, a native `range` input coloured by `accent-color`, and a
+ * 56px number box with its unit beside it.
+ */
+window.__ModuleLoader__.load({
+  id: '@local/dsh-coolme-toolkit/settings-size',
+  factory(require) {
+    const React = require('react');
+    const h = React.createElement;
+
+    const NS = 'dsh-settings-size';
+    const PKG = '@local/dsh-coolme-toolkit';
+    const STORAGE_KEY = 'dsh:settings-size';
+    /** The modal layer's own attribute hook; stable across theme/package upgrades. */
+    const PANEL_SELECTOR = 'body [data-shortcut-modal="settings"]';
+
+    /** The dialog's own shipped size, and the ranges worth dragging through. */
+    const FIELDS = {
+      width: { min: 480, max: 2000, step: 10, fallback: 800, unit: 'px' },
+      height: { min: 400, max: 1200, step: 10, fallback: 800, unit: 'px' },
+    };
+    const DEFAULTS = { width: FIELDS.width.fallback, height: FIELDS.height.fallback };
+
+    const css = `
+.dssz-group{border-bottom:1px solid var(--dsw-alias-border-l2);flex-direction:column;gap:8px;padding:16px 0;display:flex}
+.dssz-title{color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
+.dssz-description{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
+.dssz-controls{flex-direction:column;gap:10px;margin-top:6px;display:flex}
+.dssz-row{align-items:center;gap:10px;display:flex}
+.dssz-knob{align-items:center;gap:10px;display:flex}
+.dssz-knob-label{width:92px;color:var(--dsw-alias-label-secondary);flex:none;font-size:12px;line-height:18px}
+.dssz-slider{min-width:0;accent-color:var(--dsw-alias-state-business-primary);flex:1}
+.dssz-number-wrap{flex:none;align-items:center;gap:4px;display:inline-flex}
+.dssz-number{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);width:56px;height:26px;color:var(--dsw-alias-label-primary);text-align:right;border-radius:8px;padding:0 6px;font-size:12px;line-height:18px;font-family:inherit}
+.dssz-number:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
+.dssz-unit{width:18px;color:var(--dsw-alias-label-tertiary);flex:none;font-size:12px;line-height:18px}
+.dssz-reset{border:1px solid var(--dsw-alias-border-l2);height:26px;color:var(--dsw-alias-label-secondary);cursor:pointer;background:0 0;border-radius:8px;padding:0 12px;font-size:12px;line-height:18px;font-family:inherit}
+.dssz-reset:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dssz-reset:disabled{color:var(--dsw-alias-label-caption);cursor:default;opacity:.6}
+`;
+
+    /** Texts used only when the locale seat is unavailable. */
+    const FALLBACK = {
+      title: '设置弹窗尺寸',
+      description: '设置面板的宽度与高度；官方默认 800 × min(800, 窗口高 − 48px)，值为默认时不改动。',
+      width: '宽度',
+      height: '高度',
+      reset: '重置',
+    };
+
+    function clampField(kind, value) {
+      const field = FIELDS[kind];
+      const number = Number(value);
+      if (!Number.isFinite(number)) return field.fallback;
+      return Math.min(field.max, Math.max(field.min, Math.round(number)));
+    }
+
+    function normalize(raw) {
+      const next = { ...DEFAULTS };
+      if (raw === null || typeof raw !== 'object') return next;
+      for (const kind of ['width', 'height']) {
+        if (raw[kind] === undefined || raw[kind] === null) continue;
+        next[kind] = clampField(kind, raw[kind]);
+      }
+      return next;
+    }
+
+    function readStored() {
+      try {
+        return normalize(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'));
+      } catch {
+        return { ...DEFAULTS };
+      }
+    }
+
+    let size = readStored();
+    const listeners = new Set();
+
+    const getSize = () => size;
+    const same = (a, b) => a.width === b.width && a.height === b.height;
+
+    function subscribe(listener) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    }
+
+    function announce() {
+      for (const listener of [...listeners]) listener();
+    }
+
+    function write(next) {
+      const changed = !same(next, size);
+      size = next;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(size));
+      } catch {
+        /* private mode or storage disabled: the in-memory value still applies */
+      }
+      if (changed) announce();
+    }
+
+    function setField(kind, value) {
+      write({ ...size, [kind]: clampField(kind, value) });
+    }
+
+    function resetAll() {
+      write({ ...DEFAULTS });
+    }
+
+    function applyExternal(next) {
+      if (same(next, size)) return;
+      size = next;
+      announce();
+    }
+
+    function useSize() {
+      return React.useSyncExternalStore(subscribe, getSize, getSize);
+    }
+
+    const isDefault = (current) => current.width === DEFAULTS.width && current.height === DEFAULTS.height;
+
+    /** The override rule; empty while both values are the dialog's own defaults. */
+    function overrideCss(current) {
+      const rules = [];
+      if (current.width !== DEFAULTS.width) rules.push(`width:${current.width}px`);
+      if (current.height !== DEFAULTS.height) {
+        rules.push(`height:${current.height}px`, 'max-height:calc(100vh - 48px)');
+      }
+      return rules.length === 0 ? '' : `${PANEL_SELECTOR}{${rules.join(';')}}`;
+    }
+
+    /**
+     * Frame-wide stylesheet outlet. It renders nothing but the override rule, so
+     * the dialog keeps the user's size on every settings section.
+     */
+    function SizeStyle() {
+      const text = overrideCss(useSize());
+      if (text === '') return null;
+      return h('style', { 'data-plugin': PKG, dangerouslySetInnerHTML: { __html: text } });
+    }
+
+    /** One slider + number box, wired to a single value. */
+    function Knob(props) {
+      const { label, unit, min, max, step, value, fallback, onChange } = props;
+      const [draft, setDraft] = React.useState(null);
+      const clamp = (number) => Math.min(max, Math.max(min, Number.isFinite(number) ? number : min));
+      const shown = draft ?? String(value);
+
+      const commit = (raw) => {
+        const text = String(raw).trim();
+        const number = Number(text);
+        onChange(text === '' || !Number.isFinite(number) ? fallback : clamp(number));
+        setDraft(null);
+      };
+
+      const onKeyDown = (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commit(shown);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          setDraft(null);
+        } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+          event.preventDefault();
+          onChange(clamp(value + (event.key === 'ArrowUp' ? step : -step)));
+          setDraft(null);
+        }
+      };
+
+      return h('div', { className: 'dssz-knob' },
+        h('span', { className: 'dssz-knob-label' }, label),
+        h('input', {
+          className: 'dssz-slider',
+          type: 'range',
+          min,
+          max,
+          step,
+          value,
+          'aria-label': label,
+          'aria-valuetext': `${value}${unit}`,
+          onChange: (event) => onChange(clamp(Number(event.target.value))),
+        }),
+        h('span', { className: 'dssz-number-wrap' },
+          h('input', {
+            className: 'dssz-number',
+            type: 'text',
+            inputMode: 'numeric',
+            value: shown,
+            'aria-label': label,
+            onChange: (event) => setDraft(event.target.value),
+            onBlur: () => commit(shown),
+            onKeyDown,
+          }),
+          h('span', { className: 'dssz-unit' }, unit)));
+    }
+
+    /** The General section group: title, description, one slider per property. */
+    function SizeGroup(props) {
+      const tr = typeof props.t === 'function'
+        ? props.t
+        : (key) => (FALLBACK[key] !== undefined ? FALLBACK[key] : key);
+      const current = useSize();
+
+      const knob = (kind) => h(Knob, {
+        key: kind,
+        label: tr(kind),
+        unit: FIELDS[kind].unit,
+        min: FIELDS[kind].min,
+        max: FIELDS[kind].max,
+        step: FIELDS[kind].step,
+        fallback: FIELDS[kind].fallback,
+        value: current[kind],
+        onChange: (value) => setField(kind, value),
+      });
+
+      return h('div', { className: 'dssz-group' },
+        h('div', { className: 'dssz-title' }, tr('title')),
+        h('div', { className: 'dssz-description' }, tr('description')),
+        h('div', { className: 'dssz-controls' },
+          knob('width'),
+          knob('height'),
+          h('div', { className: 'dssz-row' },
+            h('button', {
+              type: 'button',
+              className: 'dssz-reset',
+              disabled: isDefault(current),
+              onClick: resetAll,
+            }, tr('reset')))));
+    }
+
+    return {
+      inject: ['slots', 'locale'],
+      apply(ctx) {
+        ctx.effect(() => ctx.locale.register(NS, 'zh', {
+          title: '设置弹窗尺寸',
+          description: '设置面板的宽度与高度；官方默认 800 × min(800, 窗口高 − 48px)，值为默认时不改动。',
+          width: '宽度',
+          height: '高度',
+          reset: '重置',
+        }), 'dsh-settings-size: zh dictionary');
+        ctx.effect(() => ctx.locale.register(NS, 'en', {
+          title: 'Settings dialog size',
+          description: 'Width and height of the settings dialog. Defaults to 800 \u00d7 min(800, window height \u2212 48px); a default value changes nothing.',
+          width: 'Width',
+          height: 'Height',
+          reset: 'Reset',
+        }), 'dsh-settings-size: en dictionary');
+
+        ctx.effect(() => {
+          const onStorage = (event) => {
+            if (event.key !== null && event.key !== STORAGE_KEY) return;
+            applyExternal(readStored());
+          };
+          window.addEventListener('storage', onStorage);
+          return () => { window.removeEventListener('storage', onStorage); };
+        }, 'dsh-settings-size: cross-tab sync');
+
+        ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+          name: 'shell.overlay',
+          id: 'dsh-settings-size-style',
+          order: 900,
+        }, SizeStyle));
+
+        ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+          name: 'settings.general.item',
+          id: 'dsh-settings-size',
+          order: 16,
+          locale: NS,
+        }, SizeGroup));
+      },
+    };
+  },
+});
+
+/**
+ * Client half of the dsh-service-restart bundle.
+ *
+ * Contributes one General-settings group with a two-step restart button: the
+ * first click arms it, the second POSTs the restart route. While the service
+ * restarts, the row polls the same route until the *new* host process answers
+ * with a different `bootId`, then reloads the page.
+ *
+ * It deliberately does NOT live in `sidebar.footer.action`: that seat is a
+ * single flex ROW, and a full-width row action already occupies it
+ * (`dsh-session-manager` uses `flex:none; width:calc(100% + 8px)`, so it can
+ * neither shrink nor share). Any second full-width entry there is crushed to a
+ * sliver — mine was the only shrinkable item, so it absorbed the whole deficit.
+ */
+window.__ModuleLoader__.load({
+  id: '@local/dsh-coolme-toolkit/service-restart',
+  factory(require) {
+    const React = require('react');
+    const h = React.createElement;
+
+    const NS = 'dsh-service-restart';
+    const PKG = '@local/dsh-coolme-toolkit';
+    const ROUTE = '/api/dsh-web-restart';
+    const POLL_INTERVAL_MS = 700;
+    const POLL_ATTEMPTS = 170;
+    /** ~14s of identical `bootId` answers: the restart never took effect. */
+    const SAME_BOOT_LIMIT = 20;
+    const ARM_TIMEOUT_MS = 6000;
+
+    const css = `
+.dsrs-group{border-bottom:1px solid var(--dsw-alias-border-l2);flex-direction:column;gap:8px;padding:16px 0;display:flex}
+.dsrs-title{color:var(--dsw-alias-label-primary);font-size:14px;line-height:22px}
+.dsrs-description{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
+.dsrs-controls{flex-direction:column;gap:10px;margin-top:6px;display:flex}
+.dsrs-row{align-items:center;gap:10px;display:flex}
+.dsrs-button{border:1px solid var(--dsw-alias-border-l2);height:28px;color:var(--dsw-alias-label-secondary);cursor:pointer;background:0 0;border-radius:8px;padding:0 12px;font-size:12px;line-height:18px;font-family:inherit;align-items:center;gap:6px;display:inline-flex}
+.dsrs-button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsrs-button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.dsrs-button[data-phase=confirm]{color:var(--dsw-alias-state-warn-primary);border-color:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 45%, var(--dsw-alias-border-l2))}
+.dsrs-button[data-phase=done]{color:var(--dsw-alias-state-success-primary)}
+.dsrs-button[data-phase=error],.dsrs-button[data-phase=timeout]{color:var(--dsw-alias-state-error-primary)}
+.dsrs-button:disabled{cursor:default;opacity:.75}
+.dsrs-icon{flex:none;display:inline-flex}
+.dsrs-spin{animation:dsrs-spin 1s linear infinite}
+@keyframes dsrs-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.dsrs-spin{animation:none}}
+`;
+
+    /** Texts used only when the locale seat is unavailable. */
+    const FALLBACK = {
+      title: '服务重启',
+      description: '等价于 systemctl restart dsh-web.service；会中断正在运行的会话。为避免误触，需要点两次。',
+      restart: '重启服务',
+      hint: '执行 systemctl restart dsh-web.service（会中断正在运行的会话）',
+      confirm: '再点一次确认重启',
+      scheduling: '正在下发重启…',
+      waiting: '等待服务恢复…',
+      done: '服务已恢复，正在刷新…',
+      error: '重启未生效，请查看日志',
+      timeout: '服务未恢复，请手动刷新页面',
+    };
+
+    const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+    async function probe() {
+      const response = await fetch(`${ROUTE}?probe=${Date.now()}`, {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      if (!response.ok) throw new Error(`probe ${response.status}`);
+      return response.json();
+    }
+
+    /** Power glyph; a plain arc "C" with the bar in the gap. */
+    function PowerGlyph(size) {
+      return h('svg', {
+        className: 'dsrs-icon',
+        viewBox: '0 0 16 16',
+        width: size,
+        height: size,
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 1.5,
+        strokeLinecap: 'round',
+        'aria-hidden': true,
+      },
+        h('path', { d: 'M8 2v6' }),
+        h('path', { d: 'M11.8 3.9A5.6 5.6 0 1 1 4.2 3.9' }),
+      );
+    }
+
+    function SpinnerGlyph(size) {
+      return h('svg', {
+        className: 'dsrs-icon dsrs-spin',
+        viewBox: '0 0 16 16',
+        width: size,
+        height: size,
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 1.6,
+        strokeLinecap: 'round',
+        'aria-hidden': true,
+      }, h('path', { d: 'M8 1.8a6.2 6.2 0 1 0 6.2 6.2' }));
+    }
+
+    function CheckGlyph(size) {
+      return h('svg', {
+        className: 'dsrs-icon',
+        viewBox: '0 0 16 16',
+        width: size,
+        height: size,
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 1.6,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+        'aria-hidden': true,
+      }, h('path', { d: 'M3.2 8.6l3.1 3.1 6.5-6.6' }));
+    }
+
+    function RestartGroup(props) {
+      const tr = typeof props.t === 'function'
+        ? props.t
+        : (key) => (FALLBACK[key] !== undefined ? FALLBACK[key] : key);
+
+      const [phase, setPhase] = React.useState('idle');
+      const alive = React.useRef(true);
+      React.useEffect(() => () => { alive.current = false; }, []);
+
+      // "Armed" is a state the user can walk away from; reset it.
+      React.useEffect(() => {
+        if (phase !== 'confirm') return undefined;
+        const timer = setTimeout(() => { if (alive.current) setPhase('idle'); }, ARM_TIMEOUT_MS);
+        return () => clearTimeout(timer);
+      }, [phase]);
+
+      const settle = (next) => { if (alive.current) setPhase(next); };
+
+      const run = async () => {
+        setPhase('scheduling');
+        const before = await probe().catch(() => null);
+
+        let response;
+        try {
+          response = await fetch(ROUTE, {
+            method: 'POST',
+            cache: 'no-store',
+            credentials: 'same-origin',
+          });
+        } catch {
+          settle('error');
+          return;
+        }
+        if (!response.ok) {
+          settle('error');
+          return;
+        }
+
+        setPhase('waiting');
+        const previous = before !== null && typeof before.bootId === 'string' ? before.bootId : null;
+        let sameBoot = 0;
+
+        for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
+          await sleep(POLL_INTERVAL_MS);
+          if (!alive.current) return;
+          try {
+            const info = await probe();
+            if (previous === null || info.bootId !== previous) {
+              settle('done');
+              setTimeout(() => { location.reload(); }, 700);
+              return;
+            }
+            // The old process is still answering long after the POST: the
+            // restart did not take effect (bad unit name, systemd refused it).
+            sameBoot += 1;
+            if (sameBoot >= SAME_BOOT_LIMIT) {
+              settle('error');
+              return;
+            }
+          } catch {
+            /* the old process is down (or restarting): keep waiting */
+          }
+        }
+        settle('timeout');
+      };
+
+      const onClick = () => {
+        if (phase === 'confirm') { void run(); return; }
+        // A resolved failure can be retried without reloading the page.
+        setPhase('confirm');
+      };
+
+      const busy = phase === 'scheduling' || phase === 'waiting' || phase === 'done';
+      const key = phase === 'idle' ? 'restart' : phase;
+      const glyph = busy
+        ? SpinnerGlyph(13)
+        : phase === 'done' ? CheckGlyph(13) : PowerGlyph(13);
+
+      const button = h('button', {
+        type: 'button',
+        className: 'dsrs-button',
+        'data-phase': phase,
+        'aria-busy': busy ? 'true' : undefined,
+        'aria-label': tr(key),
+        title: tr('hint'),
+        disabled: busy,
+        onClick,
+      }, glyph, h('span', null, tr(key)));
+
+      return h('div', { className: 'dsrs-group' },
+        h('div', { className: 'dsrs-title' }, tr('title')),
+        h('div', { className: 'dsrs-description' }, tr('description')),
+        h('div', { className: 'dsrs-controls' },
+          h('div', { className: 'dsrs-row' }, button)));
+    }
+
+    return {
+      inject: ['slots', 'locale'],
+      apply(ctx) {
+        ctx.effect(() => ctx.locale.register(NS, 'zh', {
+          title: '服务重启',
+          description: '等价于 systemctl restart dsh-web.service；会中断正在运行的会话。为避免误触，需要点两次。',
+          restart: '重启服务',
+          hint: '执行 systemctl restart dsh-web.service（会中断正在运行的会话）',
+          confirm: '再点一次确认重启',
+          scheduling: '正在下发重启…',
+          waiting: '等待服务恢复…',
+          done: '服务已恢复，正在刷新…',
+          error: '重启未生效，请查看日志',
+          timeout: '服务未恢复，请手动刷新页面',
+        }), 'dsh-service-restart: zh dictionary');
+        ctx.effect(() => ctx.locale.register(NS, 'en', {
+          title: 'Service restart',
+          description: 'Runs systemctl restart dsh-web.service. It interrupts running sessions, so it takes two clicks.',
+          restart: 'Restart service',
+          hint: 'Runs systemctl restart dsh-web.service (interrupts running sessions)',
+          confirm: 'Click again to confirm',
+          scheduling: 'Requesting restart\u2026',
+          waiting: 'Waiting for the service\u2026',
+          done: 'Service is back, reloading\u2026',
+          error: 'Restart did not take effect, check the log',
+          timeout: 'Service did not come back, reload manually',
+        }), 'dsh-service-restart: en dictionary');
+
+        ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+          name: 'settings.general.item',
+          id: 'dsh-service-restart',
+          order: 15,
+          locale: NS,
+        }, RestartGroup));
       },
     };
   },

@@ -1,6 +1,13 @@
-# dsh-conversation-width bundle patch.
-# The Host half is an empty shell: this feature is entirely a Client
-# contribution (a General-settings row plus a frame-wide style outlet).
+# CoolMe Toolkit: one bundle, four personal dsh utilities.
 - insert:
-    - id: dsh-conversation-width
-      name: '@local/dsh-conversation-width'
+    - id: dsh-coolme-toolkit
+      name: '@local/dsh-coolme-toolkit'
+      config:
+        fakeIp:
+          # Only this IPv4 CIDR is added to web_fetch's SSRF allowance.
+          band: '198.18.0.0/15'
+          # Probe the wrapped resolver after activation and log the verdict.
+          probe: true
+        restart:
+          unit: 'dsh-web.service'
+          delaySeconds: 1
